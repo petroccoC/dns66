@@ -56,14 +56,14 @@ public class HostDatabase {
     }
 
     /**
-     * Check if a host is contained in the database.
+     * Check if a host is blacklisted.
      * <p>
      * This operations requires only one atomic reference read and requires as many hash
      * table lookups as there are files, making them relatively efficient. The atomic reference
      * read might be practically free, as there is usually no contention.
      *
      * @param host A host name.
-     * @return true if the host is in the database
+     * @return true if the host is blacklisted
      */
     public boolean contains(String host) {
         int result = Configuration.Item.STATE_ALLOW;
@@ -71,7 +71,7 @@ public class HostDatabase {
             if (file.hosts.contains(host))
                 result = file.item.state;
         }
-        return result != Configuration.Item.STATE_DENY;
+        return result == Configuration.Item.STATE_DENY;
     }
 
     /**
