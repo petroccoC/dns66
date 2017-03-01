@@ -190,7 +190,7 @@ class AdVpnThread extends Thread {
     private void onCommand() throws ErrnoException, IOException, VpnNetworkException, InterruptedException {
         byte[] command = new byte[1];
         Os.read(mCommandInFd, command, 0, 1);
-        Log.d(TAG, "onCommand: Received command " + command);
+        Log.d(TAG, "onCommand: Received command " + command[0]);
 
         if (command[0] == COMMAND_RESUME) {
             onPause();
