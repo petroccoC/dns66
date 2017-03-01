@@ -198,7 +198,7 @@ class AdVpnThread extends Thread {
         } else if (command[0] == COMMAND_DESTROY) {
             onPause();
             onDestroy();
-        } else if (command[1] == COMMAND_PAUSE) {
+        } else if (command[0] == COMMAND_PAUSE) {
             onPause();
         }
     }
