@@ -43,13 +43,9 @@ import org.xbill.DNS.Flags;
 import org.xbill.DNS.Message;
 import org.xbill.DNS.Rcode;
 
-import java.io.BufferedReader;
-import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.net.DatagramPacket;
@@ -241,24 +237,29 @@ class AdVpnThread implements Runnable {
     }
 
     private boolean doOne(FileInputStream inputStream, FileOutputStream outFd, byte[] packet) throws IOException, ErrnoException, InterruptedException, VpnNetworkException {
-        StructPollfd deviceFd = new StructPollfd();
-        deviceFd.fd = inputStream.getFD();
-        deviceFd.events = (short) OsConstants.POLLIN;
         StructPollfd blockFd = new StructPollfd();
         blockFd.fd = mBlockFd;
         blockFd.events = (short) (OsConstants.POLLHUP | OsConstants.POLLERR);
 
-        if (!deviceWrites.isEmpty())
-            deviceFd.events |= (short) OsConstants.POLLOUT;
 
-        StructPollfd[] polls = new StructPollfd[2 + dnsIn.size()];
-        polls[0] = deviceFd;
-        polls[1] = blockFd;
+        StructPollfd deviceFd = null;
+        if (inputStream != null) {
+            deviceFd = new StructPollfd();
+            deviceFd.fd = inputStream.getFD();
+            deviceFd.events = (short) OsConstants.POLLIN;
+            if (!deviceWrites.isEmpty())
+                deviceFd.events |= (short) OsConstants.POLLOUT;
+        }
+
+        StructPollfd[] polls = new StructPollfd[dnsIn.size() + (deviceFd != null ? 2 : 1)];
+        if (deviceFd != null)
+            polls[polls.length - 2] = deviceFd;
+        polls[polls.length - 1] = blockFd;
         {
             int i = -1;
             for (WaitingOnSocketPacket wosp : dnsIn) {
                 i++;
-                StructPollfd pollFd = polls[2 + i] = new StructPollfd();
+                StructPollfd pollFd = polls[i] = new StructPollfd();
                 pollFd.fd = ParcelFileDescriptor.fromDatagramSocket(wosp.socket).getFileDescriptor();
                 pollFd.events = (short) OsConstants.POLLIN;
             }
@@ -279,7 +280,7 @@ class AdVpnThread implements Runnable {
             while (iter.hasNext()) {
                 i++;
                 WaitingOnSocketPacket wosp = iter.next();
-                if ((polls[i + 2].revents & OsConstants.POLLIN) != 0) {
+                if ((polls[i].revents & OsConstants.POLLIN) != 0) {
                     Log.d(TAG, "Read from DNS socket" + wosp.socket);
                     iter.remove();
                     handleRawDnsResponse(wosp.packet, wosp.socket);
@@ -287,11 +288,11 @@ class AdVpnThread implements Runnable {
                 }
             }
         }
-        if ((deviceFd.revents & OsConstants.POLLOUT) != 0) {
+        if (deviceFd != null && (deviceFd.revents & OsConstants.POLLOUT) != 0) {
             Log.d(TAG, "Write to device");
             writeToDevice(outFd);
         }
-        if ((deviceFd.revents & OsConstants.POLLIN) != 0) {
+        if (deviceFd != null && (deviceFd.revents & OsConstants.POLLIN) != 0) {
             Log.d(TAG, "Read from device");
             readPacketFromDevice(inputStream, packet);
         }
